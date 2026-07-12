@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Avito Deal Finder</title>
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%2310b981'/><text x='50' y='68' font-size='55' text-anchor='middle' fill='%230f172a'>🔥</text></svg>">
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: linear-gradient(135deg,#0f172a 0%,#1e293b 50%,#0f172a 100%);
+    color: #f1f5f9; min-height: 100vh; padding: 20px 16px 60px;
+  }
+  h1 { font-size: 22px; margin: 8px 0 2px; display:flex; align-items:center; gap:8px;}
+  .sub { color:#94a3b8; font-size:14px; margin-bottom:20px; }
+  .card {
+    background:#1e293b; border:1px solid #334155; border-radius:14px;
+    padding:16px; margin-bottom:16px;
+  }
+  .card h2 { font-size:15px; margin:0 0 12px; color:#e2e8f0; }
+  .chip {
+    display:inline-flex; align-items:center; gap:6px;
+    background:#0f172a; border:1px solid #334155; border-radius:20px;
+    padding:8px 8px 8px 14px; margin:4px 6px 4px 0; font-size:14px;
+  }
+  .chip button {
+    background:none; border:none; color:#f87171; font-size:16px;
+    cursor:pointer; padding:2px 6px; border-radius:50%;
+  }
+  .row { display:flex; gap:8px; margin-top:10px; }
+  input[type=text], input[type=number] {
+    flex:1; background:#0f172a; border:1px solid #334155; color:#f1f5f9;
+    border-radius:10px; padding:12px 14px; font-size:15px; outline:none;
+  }
+  input:focus { border-color:#10b981; }
+  button.primary {
+    background:#10b981; color:#0f172a; border:none; border-radius:10px;
+    padding:12px 18px; font-weight:600; font-size:15px; cursor:pointer;
+  }
+  button.primary:disabled { opacity:.5; }
+  button.ghost {
+    background:none; border:1px solid #334155; color:#cbd5e1;
+    border-radius:10px; padding:12px 18px; font-size:14px; cursor:pointer;
+  }
+  label { display:block; font-size:13px; color:#94a3b8; margin:14px 0 6px; }
+  input[type=range] { width:100%; accent-color:#10b981; }
+  .val { color:#10b981; font-weight:600; }
+  #status {
+    position:fixed; bottom:0; left:0; right:0; text-align:center;
+    padding:14px; font-size:14px; font-weight:600; transition:.3s;
+    transform:translateY(100%);
+  }
+  #status.show { transform:translateY(0); }
+  #status.ok { background:#065f46; color:#d1fae5; }
+  #status.err { background:#7f1d1d; color:#fecaca; }
+  #status.busy { background:#334155; color:#e2e8f0; }
+  .gate { max-width:420px; margin:60px auto; text-align:center; }
+  .gate input { width:100%; margin-top:14px; }
+  .gate p { color:#94a3b8; font-size:13px; line-height:1.5; }
+  .hidden { display:none; }
+  a { color:#34d399; }
+</style>
+</head>
+<body>
+
+<div id="gate" class="gate hidden">
+  <h1>🔥 Avito Deal Finder</h1>
+  <p>Чтобы сохранять настройки, нужен токен доступа к твоему GitHub-репозиторию (создаётся один раз, хранится только в этом телефоне).</p>
+  <input type="text" id="tokenInput" placeholder="github_pat_...">
+  <button class="primary" style="margin-top:14px;width:100%" onclick="saveToken()">Сохранить и продолжить</button>
+  <p style="margin-top:20px">Как получить токен — см. инструкцию в чате.</p>
+</div>
+
+<div id="app" class="hidden">
+  <h1>🔥 Avito Deal Finder</h1>
+  <div class="sub">Настройки поиска — изменения сохраняются сразу в бота</div>
+
+  <div class="card">
+    <h2>🔍 Что ищем</h2>
+    <div id="keywordsWrap"></div>
+    <div class="row">
+      <input type="text" id="newKeyword" placeholder="Например: iphone 13 128gb">
+      <button class="primary" onclick="addKeyword()">+</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>⚙️ Параметры</h2>
+    <label>Порог выгодности: <span class="val" id="thrVal">25%</span></label>
+    <input type="range" id="threshold" min="5" max="50" step="5" value="25" oninput="thrVal.textContent=this.value+'%'">
+
+    <label>Минимум объявлений для расчёта средней цены</label>
+    <input type="number" id="minSamples" min="1" max="20" value="5">
+
+    <label>Город (необязательно, например "moskva")</label>
+    <input type="text" id="citySlug" placeholder="оставь пустым — вся Россия">
+  </div>
+
+  <button class="primary" style="width:100%;padding:16px" onclick="save()">💾 Сохранить настройки</button>
+  <div style="text-align:center;margin-top:14px">
+    <button class="ghost" onclick="resetToken()">Сменить токен</button>
+  </div>
+</div>
+
+<div id="status"></div>
+
+<script>
+const OWNER = "skirichenko039-oss";
+const REPO = "avito-bot";
+const PATH = "config.json";
+const BRANCH = "main";
+
+let sha = null;
+let keywords = [];
+
+function utf8ToB64(str){ return btoa(unescape(encodeURIComponent(str))); }
+function b64ToUtf8(str){ return decodeURIComponent(escape(atob(str))); }
+
+function getToken(){ return localStorage.getItem('avito_gh_token'); }
+
+function showStatus(text, type, autoHide){
+  const el = document.getElementById('status');
+  el.textContent = text;
+  el.className = 'show ' + type;
+  if(autoHide){ setTimeout(()=>{ el.className = ''; }, 2500); }
+}
+
+function saveToken(){
+  const t = document.getElementById('tokenInput').value.trim();
+  if(!t){ alert('Вставь токен'); return; }
+  localStorage.setItem('avito_gh_token', t);
+  init();
+}
+
+function resetToken(){
+  localStorage.removeItem('avito_gh_token');
+  location.reload();
+}
+
+async function apiGet(){
+  const res = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/${PATH}?ref=${BRANCH}`, {
+    headers: { 'Authorization': 'Bearer ' + getToken(), 'Accept':'application/vnd.github+json' }
+  });
+  if(!res.ok) throw new Error('Ошибка загрузки: ' + res.status);
+  return res.json();
+}
+
+async function apiPut(newContentObj, message){
+  const body = {
+    message: message,
+    content: utf8ToB64(JSON.stringify(newContentObj, null, 2)),
+    sha: sha,
+    branch: BRANCH
+  };
+  const res = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/${PATH}`, {
+    method: 'PUT',
+    headers: { 'Authorization': 'Bearer ' + getToken(), 'Accept':'application/vnd.github+json', 'Content-Type':'application/json' },
+    body: JSON.stringify(body)
+  });
+  if(!res.ok){
+    const err = await res.json().catch(()=>({}));
+    throw new Error(err.message || ('Ошибка сохранения: ' + res.status));
+  }
+  return res.json();
+}
+
+function renderKeywords(){
+  const wrap = document.getElementById('keywordsWrap');
+  wrap.innerHTML = '';
+  keywords.forEach((k, i) => {
+    const chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.innerHTML = `${k} <button onclick="removeKeyword(${i})">✕</button>`;
+    wrap.appendChild(chip);
+  });
+}
+
+function addKeyword(){
+  const input = document.getElementById('newKeyword');
+  const val = input.value.trim();
+  if(val && !keywords.includes(val)){
+    keywords.push(val);
+    input.value = '';
+    renderKeywords();
+  }
+}
+
+function removeKeyword(i){
+  keywords.splice(i,1);
+  renderKeywords();
+}
+
+async function save(){
+  showStatus('Сохраняю...', 'busy', false);
+  try {
+    const config = {
+      keywords: keywords,
+      discount_threshold: parseInt(document.getElementById('threshold').value)/100,
+      min_samples_for_median: parseInt(document.getElementById('minSamples').value),
+      city_slug: document.getElementById('citySlug').value.trim()
+    };
+    const result = await apiPut(config, 'Обновление настроек через лендинг');
+    sha = result.content.sha;
+    showStatus('✅ Сохранено! Бот подхватит изменения при следующей проверке', 'ok', true);
+  } catch(e){
+    showStatus('❌ ' + e.message, 'err', true);
+  }
+}
+
+async function init(){
+  const token = getToken();
+  if(!token){
+    document.getElementById('gate').classList.remove('hidden');
+    document.getElementById('app').classList.add('hidden');
+    return;
+  }
+  document.getElementById('gate').classList.add('hidden');
+  showStatus('Загружаю настройки...', 'busy', false);
+  try {
+    const data = await apiGet();
+    sha = data.sha;
+    const config = JSON.parse(b64ToUtf8(data.content));
+    keywords = config.keywords || [];
+    document.getElementById('threshold').value = Math.round((config.discount_threshold||0.25)*100);
+    document.getElementById('thrVal').textContent = document.getElementById('threshold').value + '%';
+    document.getElementById('minSamples').value = config.min_samples_for_median || 5;
+    document.getElementById('citySlug').value = config.city_slug || '';
+    renderKeywords();
+    document.getElementById('app').classList.remove('hidden');
+    document.getElementById('status').className = '';
+  } catch(e){
+    showStatus('❌ ' + e.message + ' — проверь токен', 'err', false);
+    document.getElementById('gate').classList.remove('hidden');
+  }
+}
+
+document.getElementById('newKeyword').addEventListener('keypress', e => {
+  if(e.key === 'Enter') addKeyword();
+});
+
+init();
+</script>
+</body>
+</html>
