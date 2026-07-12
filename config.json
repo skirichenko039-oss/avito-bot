@@ -4,6 +4,6 @@
     "Xiaomi Qingping Air Monitor CGS2"
   ],
   "discount_threshold": 0.4,
-  "min_samples_for_median": 5,
+  "min_samples_for_median": 10,
   "city_slug": ""
 }
