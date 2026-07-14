@@ -23,14 +23,13 @@ jobs:
           python-version: '3.11'
 
       - name: Установить зависимости
-        run: |
-          pip install playwright
-          playwright install --with-deps chromium
+        run: pip install -r requirements.txt
 
       - name: Запустить проверку Авито
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          SCRAPERAPI_KEY: ${{ secrets.SCRAPERAPI_KEY }}
         run: python avito_check.py
 
       - name: Сохранить обновлённую историю объявлений
@@ -40,4 +39,3 @@ jobs:
           git add data/listings.json
           git diff --staged --quiet || git commit -m "Обновление истории объявлений [skip ci]"
           git push
-
