@@ -3,7 +3,7 @@
     "XIaomi с Алисой",
     "Xiaomi Qingping Air Monitor CGS2"
   ],
-  "discount_threshold": 0.3,
+  "discount_threshold": 0.15,
   "min_samples_for_median": 5,
   "city_slug": ""
 }
